@@ -54,31 +54,43 @@ with st.sidebar:
         elif not os.path.exists("data") or len(os.listdir("data")) == 0:
             st.error("The data folder is empty. Please upload documents first.")
         else:
-            with st.spinner("Wiping old database and indexing new documents..."):
-                try:
-                    # Clear out the old directory completely to avoid mismatched structural conflicts
-                    if os.path.exists("/tmp/chroma_db"):
-                        shutil.rmtree("/tmp/chroma_db")
-                    
-                    txt_loader = DirectoryLoader("data", glob="*.txt", loader_cls=TextLoader)
-                    pdf_loader = DirectoryLoader("data", glob="*.pdf", loader_cls=PyPDFLoader)
-                    
-                    docs = []
-                    if os.path.exists("data"):
-                        docs.extend(txt_loader.load())
-                        docs.extend(pdf_loader.load())
-                    
-                    text_splitter = RecursiveCharacterTextSplitter(chunk_size=700, chunk_overlap=100)
-                    chunks = text_splitter.split_documents(docs)
-                    
-                    # Core Embedding Initialization
-                    embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2-preview", google_api_key=google_api_key)
-                    vector_store = Chroma.from_documents(chunks, embeddings, persist_directory="./chroma_db")
-                    
-                    st.success(f"🎉 Successfully indexed {len(chunks)} chunks into your fresh database!")
-                    st.rerun() # Refresh the page state automatically
-                except Exception as e:
-                    st.error(f"Error building database: {str(e)}")
+            # We put a distinct info box here to ensure Streamlit registers the click activity
+            status_box = st.info("Starting processing... Please wait.")
+            try:
+                # Force create the tmp directory explicitly to avoid write/read initialization blanks
+                os.makedirs("/tmp/chroma_db", exist_ok=True)
+                
+                # Load files using explicit fallback encodings 
+                txt_loader = DirectoryLoader("data", glob="*.txt", loader_cls=lambda p: TextLoader(p, encoding="utf-8"))
+                pdf_loader = DirectoryLoader("data", glob="*.pdf", loader_cls=PyPDFLoader)
+                
+                docs = []
+                docs.extend(txt_loader.load())
+                docs.extend(pdf_loader.load())
+                
+                if not docs:
+                    st.error("Could not parse any text out of the uploaded files. Check file extensions.")
+                    return
+
+                text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+                chunks = text_splitter.split_documents(docs)
+                
+                status_box.text(f"Indexing {len(chunks)} text chunks with text-embedding-004...")
+                
+                embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=google_api_key)
+                
+                # Build database directly in place
+                vector_store = Chroma.from_documents(chunks, embeddings, persist_directory="/tmp/chroma_db")
+                
+                status_box.empty() # Remove temporary loading info box
+                st.success(f"🎉 Successfully indexed {len(chunks)} chunks! Ask your question below!")
+                
+                # Use standard state manipulation instead of st.rerun() which can crash some instances
+                st.session_state["db_built"] = True
+                
+            except Exception as e:
+                status_box.empty()
+                st.error(f"❌ Structural database error: {str(e)}")
 
 # Audio Auto-play helper
 def autoplay_audio(file_path):
