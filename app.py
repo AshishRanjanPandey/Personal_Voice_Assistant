@@ -36,7 +36,7 @@ with st.sidebar:
         os.makedirs("data", exist_ok=True)
         for uploaded_file in uploaded_files:
             with open(os.path.join("data", uploaded_file.name), "wb") as f:
-                f.write(uploaded_file.get_buffer())
+                f.write(uploaded_file.getvalue())
         st.success(f"Saved {len(uploaded_files)} files to knowledge base folder.")
 
     if st.button("🔄 Build/Refresh Vector DB", type="primary"):
