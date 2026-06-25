@@ -58,7 +58,7 @@ with st.sidebar:
                     chunks = text_splitter.split_documents(docs)
                     
                     # Initialize Free Google Embeddings
-                    embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=google_api_key)
+                    embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2-preview", google_api_key=google_api_key)
                     vector_store = Chroma.from_documents(chunks, embeddings, persist_directory="./chroma_db")
                     st.success(f"Successfully indexed {len(chunks)} chunks in your local database!")
                 except Exception as e:
@@ -82,7 +82,7 @@ if not google_api_key:
 else:
     if os.path.exists("./chroma_db"):
         # Load Vector Store
-        embeddings = GoogleGenerativeAIEmbeddings(model="models/text-embedding-004", google_api_key=google_api_key)
+        embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2-preview", google_api_key=google_api_key)
         vector_store = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
         retriever = vector_store.as_retriever(search_kwargs={"k": 3})
         
