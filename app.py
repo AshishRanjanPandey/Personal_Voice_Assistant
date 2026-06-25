@@ -63,7 +63,7 @@ with st.sidebar:
                     chunks = text_splitter.split_documents(docs)
                     
                     # Core Embedding Initialization
-                    embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=google_api_key)
+                    embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2-preview", google_api_key=google_api_key)
                     vector_store = Chroma.from_documents(chunks, embeddings, persist_directory="./chroma_db")
                     
                     st.success(f"🎉 Successfully indexed {len(chunks)} chunks into your fresh database!")
@@ -88,7 +88,7 @@ if not google_api_key:
     st.info("⚠️ Please enter your Google Gemini API Key in the sidebar or save it in Streamlit Secrets to begin.")
 else:
     if os.path.exists("./chroma_db"):
-        embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=google_api_key)
+        embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2-preview", google_api_key=google_api_key)
         vector_store = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
         retriever = vector_store.as_retriever(search_kwargs={"k": 3})
         
