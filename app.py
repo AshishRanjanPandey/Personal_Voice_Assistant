@@ -1,3 +1,12 @@
+__import__('pysqlite3')
+import sys
+sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
+
+# YOUR REGULAR IMPORTS START HERE
+import streamlit as st
+import os
+import shutil
+# ... rest of your code ...
 import streamlit as st
 import os
 import shutil
@@ -48,8 +57,8 @@ with st.sidebar:
             with st.spinner("Wiping old database and indexing new documents..."):
                 try:
                     # Clear out the old directory completely to avoid mismatched structural conflicts
-                    if os.path.exists("./chroma_db"):
-                        shutil.rmtree("./chroma_db")
+                    if os.path.exists("/tmp/chroma_db"):
+                        shutil.rmtree("/tmp/chroma_db")
                     
                     txt_loader = DirectoryLoader("data", glob="*.txt", loader_cls=TextLoader)
                     pdf_loader = DirectoryLoader("data", glob="*.pdf", loader_cls=PyPDFLoader)
@@ -87,9 +96,9 @@ def autoplay_audio(file_path):
 if not google_api_key:
     st.info("⚠️ Please enter your Google Gemini API Key in the sidebar or save it in Streamlit Secrets to begin.")
 else:
-    if os.path.exists("./chroma_db"):
+    if os.path.exists("/tmp/chroma_db"):
         embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2-preview", google_api_key=google_api_key)
-        vector_store = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
+        vector_store = Chroma.from_documents(chunks, embeddings, persist_directory="/tmp/chroma_db")
         retriever = vector_store.as_retriever(search_kwargs={"k": 3})
         
         llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2, google_api_key=google_api_key)
