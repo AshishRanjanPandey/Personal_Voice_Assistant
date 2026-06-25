@@ -1,0 +1,8 @@
+Project LocalVoiceIntel Overview
+LocalVoiceIntel is a custom mini smart voice assistant running on Gemini.
+
+Company Holiday Policy 2026:
+1. New Year's Day - January 1, 2026
+2. Independence Day - July 4, 2026
+3. Thanksgiving - November 26, 2026
+4. Christmas Day - December 25, 2026
