@@ -72,7 +72,7 @@ with st.sidebar:
                     
                     status_box.text(f"Indexing {len(chunks)} chunks with text-embedding-004...")
                     
-                    embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=google_api_key)
+                    embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2-preview", google_api_key=google_api_key)
                     vector_store = Chroma.from_documents(chunks, embeddings, persist_directory="/tmp/chroma_db")
                     
                     status_box.empty()
@@ -100,7 +100,7 @@ if not google_api_key:
     st.info("⚠️ Please enter your Google Gemini API Key in the sidebar or save it in Streamlit Secrets to begin.")
 else:
     if os.path.exists("/tmp/chroma_db") or "db_built" in st.session_state:
-        embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=google_api_key)
+        embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2-preview", google_api_key=google_api_key)
         vector_store = Chroma(persist_directory="/tmp/chroma_db", embedding_function=embeddings)
         retriever = vector_store.as_retriever(search_kwargs={"k": 3})
         
