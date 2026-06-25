@@ -2,11 +2,6 @@ __import__('pysqlite3')
 import sys
 sys.modules['sqlite3'] = sys.modules.pop('pysqlite3')
 
-# YOUR REGULAR IMPORTS START HERE
-import streamlit as st
-import os
-import shutil
-# ... rest of your code ...
 import streamlit as st
 import os
 import shutil
@@ -54,40 +49,36 @@ with st.sidebar:
         elif not os.path.exists("data") or len(os.listdir("data")) == 0:
             st.error("The data folder is empty. Please upload documents first.")
         else:
-            # We put a distinct info box here to ensure Streamlit registers the click activity
             status_box = st.info("Starting processing... Please wait.")
             try:
-                # Force create the tmp directory explicitly to avoid write/read initialization blanks
+                # Force clean the tmp directory explicitly to prevent read/write conflicts
+                if os.path.exists("/tmp/chroma_db"):
+                    shutil.rmtree("/tmp/chroma_db")
                 os.makedirs("/tmp/chroma_db", exist_ok=True)
                 
-                # Load files using explicit fallback encodings 
                 txt_loader = DirectoryLoader("data", glob="*.txt", loader_cls=lambda p: TextLoader(p, encoding="utf-8"))
                 pdf_loader = DirectoryLoader("data", glob="*.pdf", loader_cls=PyPDFLoader)
                 
                 docs = []
-                docs.extend(txt_loader.load())
-                docs.extend(pdf_loader.load())
+                if os.path.exists("data"):
+                    docs.extend(txt_loader.load())
+                    docs.extend(pdf_loader.load())
                 
                 if not docs:
-                    st.error("Could not parse any text out of the uploaded files. Check file extensions.")
-                    return
-
-                text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
-                chunks = text_splitter.split_documents(docs)
-                
-                status_box.text(f"Indexing {len(chunks)} text chunks with text-embedding-004...")
-                
-                embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=google_api_key)
-                
-                # Build database directly in place
-                vector_store = Chroma.from_documents(chunks, embeddings, persist_directory="/tmp/chroma_db")
-                
-                status_box.empty() # Remove temporary loading info box
-                st.success(f"🎉 Successfully indexed {len(chunks)} chunks! Ask your question below!")
-                
-                # Use standard state manipulation instead of st.rerun() which can crash some instances
-                st.session_state["db_built"] = True
-                
+                    st.error("Could not parse any text out of the uploaded files.")
+                else:
+                    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+                    chunks = text_splitter.split_documents(docs)
+                    
+                    status_box.text(f"Indexing {len(chunks)} chunks with text-embedding-004...")
+                    
+                    embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=google_api_key)
+                    vector_store = Chroma.from_documents(chunks, embeddings, persist_directory="/tmp/chroma_db")
+                    
+                    status_box.empty()
+                    st.success(f"🎉 Successfully indexed {len(chunks)} chunks! Try asking your question below.")
+                    st.session_state["db_built"] = True
+                    
             except Exception as e:
                 status_box.empty()
                 st.error(f"❌ Structural database error: {str(e)}")
@@ -108,14 +99,13 @@ def autoplay_audio(file_path):
 if not google_api_key:
     st.info("⚠️ Please enter your Google Gemini API Key in the sidebar or save it in Streamlit Secrets to begin.")
 else:
-    if os.path.exists("/tmp/chroma_db"):
-        embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2-preview", google_api_key=google_api_key)
-        vector_store = Chroma.from_documents(chunks, embeddings, persist_directory="/tmp/chroma_db")
+    if os.path.exists("/tmp/chroma_db") or "db_built" in st.session_state:
+        embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=google_api_key)
+        vector_store = Chroma(persist_directory="/tmp/chroma_db", embedding_function=embeddings)
         retriever = vector_store.as_retriever(search_kwargs={"k": 3})
         
         llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2, google_api_key=google_api_key)
         
-        # Aligned prompt syntax configuration for create_stuff_documents_chain
         system_prompt = (
             "You are a friendly, helpful custom voice assistant. Answer the user's question "
             "using only the provided context. If you do not know the answer, say "
