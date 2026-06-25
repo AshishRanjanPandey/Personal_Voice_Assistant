@@ -1,5 +1,6 @@
 import streamlit as st
 import os
+import shutil
 from langchain_community.document_loaders import DirectoryLoader, TextLoader, PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_google_genai import GoogleGenerativeAIEmbeddings, ChatGoogleGenerativeAI
@@ -21,7 +22,6 @@ st.markdown("Upload documents, ask questions, and receive spoken responses power
 with st.sidebar:
     st.header("⚙️ Configuration")
     
-    # Check if key exists in Streamlit Secrets first, otherwise offer text input
     if "GOOGLE_API_KEY" in st.secrets:
         google_api_key = st.secrets["GOOGLE_API_KEY"]
         st.success("🤖 Google API Key loaded securely from Secrets!")
@@ -37,7 +37,7 @@ with st.sidebar:
         for uploaded_file in uploaded_files:
             with open(os.path.join("data", uploaded_file.name), "wb") as f:
                 f.write(uploaded_file.getvalue())
-        st.success(f"Saved {len(uploaded_files)} files to knowledge base folder.")
+        st.success(f"Saved {len(uploaded_files)} files to data folder.")
 
     if st.button("🔄 Build/Refresh Vector DB", type="primary"):
         if not google_api_key:
@@ -45,22 +45,29 @@ with st.sidebar:
         elif not os.path.exists("data") or len(os.listdir("data")) == 0:
             st.error("The data folder is empty. Please upload documents first.")
         else:
-            with st.spinner("Processing documents & building vector database..."):
+            with st.spinner("Wiping old database and indexing new documents..."):
                 try:
+                    # Clear out the old directory completely to avoid mismatched structural conflicts
+                    if os.path.exists("./chroma_db"):
+                        shutil.rmtree("./chroma_db")
+                    
                     txt_loader = DirectoryLoader("data", glob="*.txt", loader_cls=TextLoader)
                     pdf_loader = DirectoryLoader("data", glob="*.pdf", loader_cls=PyPDFLoader)
                     
                     docs = []
-                    docs.extend(txt_loader.load())
-                    docs.extend(pdf_loader.load())
+                    if os.path.exists("data"):
+                        docs.extend(txt_loader.load())
+                        docs.extend(pdf_loader.load())
                     
-                    text_splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+                    text_splitter = RecursiveCharacterTextSplitter(chunk_size=700, chunk_overlap=100)
                     chunks = text_splitter.split_documents(docs)
                     
-                    # Initialize Free Google Embeddings
-                    embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2-preview", google_api_key=google_api_key)
+                    # Core Embedding Initialization
+                    embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=google_api_key)
                     vector_store = Chroma.from_documents(chunks, embeddings, persist_directory="./chroma_db")
-                    st.success(f"Successfully indexed {len(chunks)} chunks in your local database!")
+                    
+                    st.success(f"🎉 Successfully indexed {len(chunks)} chunks into your fresh database!")
+                    st.rerun() # Refresh the page state automatically
                 except Exception as e:
                     st.error(f"Error building database: {str(e)}")
 
@@ -81,14 +88,13 @@ if not google_api_key:
     st.info("⚠️ Please enter your Google Gemini API Key in the sidebar or save it in Streamlit Secrets to begin.")
 else:
     if os.path.exists("./chroma_db"):
-        # Load Vector Store
-        embeddings = GoogleGenerativeAIEmbeddings(model="gemini-embedding-2-preview", google_api_key=google_api_key)
+        embeddings = GoogleGenerativeAIEmbeddings(model="text-embedding-004", google_api_key=google_api_key)
         vector_store = Chroma(persist_directory="./chroma_db", embedding_function=embeddings)
         retriever = vector_store.as_retriever(search_kwargs={"k": 3})
         
-        # Load Free Gemini LLM
-        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.3, google_api_key=google_api_key)
+        llm = ChatGoogleGenerativeAI(model="gemini-2.5-flash", temperature=0.2, google_api_key=google_api_key)
         
+        # Aligned prompt syntax configuration for create_stuff_documents_chain
         system_prompt = (
             "You are a friendly, helpful custom voice assistant. Answer the user's question "
             "using only the provided context. If you do not know the answer, say "
@@ -116,12 +122,10 @@ else:
                     st.markdown("### 🤖 Assistant Response:")
                     st.write(answer)
                     
-                    # Convert Answer text to Speech output
                     tts = gTTS(text=answer, lang='en')
                     audio_file_path = "response.mp3"
                     tts.save(audio_file_path)
                     
-                    # Audio Playback HTML injection
                     st.audio(audio_file_path, format="audio/mp3")
                     autoplay_audio(audio_file_path)
                     
